@@ -1,11 +1,12 @@
 import streamlit as st
 import pandas as pd
-import openai
+#import openai
+import plotly.express as px
+# ===== USER CREDENTIALS =====
 from openai import OpenAI
 from io import BytesIO
 from functools import reduce
 from st_aggrid import AgGrid, GridOptionsBuilder, DataReturnMode, GridUpdateMode
-import plotly.express as px
 
 
 # ===== USER CREDENTIALS =====
@@ -39,7 +40,6 @@ def login_page():
 if not st.session_state.logged_in:
     login_page()
     st.stop()
-
 
 # ===== PAGE CONFIG =====
 st.set_page_config(page_title="Join Data App", layout="wide", page_icon="📊")
@@ -206,7 +206,6 @@ if data_utama_file:
         # Ganti NaT di kolom datetime menjadi string kosong agar aman untuk diproses dan ditampilkan
         for col in join_result.select_dtypes(include=["datetime", "datetimetz"]).columns:
             join_result[col] = join_result[col].fillna(pd.NaT).astype(str).replace("NaT", "")
-
 
         # ===== FITUR SEARCH DI SIDEBAR =====
         st.sidebar.markdown("## 🕵️ Pencarian Data")
@@ -501,13 +500,14 @@ if data_utama_file:
                 st.info("Data tidak memiliki kolom 'Check-In Date' dan/atau 'Voucher Hotel Amount'.")
 
         def show_forecasting_travel_request(df):
-            st.markdown("## 🔮 Prediksi Jumlah Perjalanan (Travel Request)")
+            st.markdown("### Prediksi Jumlah Perjalanan (Travel Request)")
+            
 
             if 'Check-In Date' not in df.columns:
                 st.warning("Kolom 'Check-In Date' tidak ditemukan.")
                 return
 
-            if st.button("🔮 Analyze Forecast"):
+            if st.button("Analyze Forecast"):
                 df = df.copy()
                 df['Check-In Date'] = pd.to_datetime(df['Check-In Date'], errors='coerce')
                 df['month'] = df['Check-In Date'].dt.to_period('M').dt.to_timestamp()
@@ -523,7 +523,7 @@ if data_utama_file:
                 from prophet import Prophet
                 import plotly.graph_objs as go
 
-                with st.spinner("🔮 Memprediksi tren perjalanan..."):
+                with st.spinner("Memprediksi tren perjalanan..."):
                     model = Prophet()
                     model.fit(df_monthly)
 
@@ -548,6 +548,9 @@ if data_utama_file:
         show_forecasting_travel_request(join_result)
 
                 # ===== OPEN AI =====
+        #openai.api_key = st.secrets["OPENAI_API_KEY"]  # Pastikan ini ditaruh di atas
+        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
         def generate_narrative(df, topic="summary"):
             """Menghasilkan narasi analitik dari data menggunakan OpenAI"""
             try:
@@ -563,52 +566,30 @@ if data_utama_file:
         {sample_text}
                 """
 
-                response = openai.ChatCompletion.create(
-                    model="gpt-3.5",  # Gunakan "gpt-3.5-turbo" jika tidak punya akses ke gpt-4
-                    messages=[{"role": "user", "content": prompt}],
-                    temperature=0.4,
+                response = client.chat.completions.create(
+                    model="gpt-4",  # Atau gpt-3.5-turbo jika belum punya akses gpt-4
+                    messages=[
+                        {"role": "system", "content": "Kamu adalah asisten data yang profesional dan mudah dimengerti."},
+                        {"role": "user", "content": prompt}
+                    ],
+                    temperature=0.5,
                     max_tokens=500
                 )
 
-                return response['choices'][0]['message']['content']
+                return response.choices[0].message.content
+
             except Exception as e:
                 return f"Gagal menghasilkan narasi: {e}"
 
         # ===== NARASI GPT BERDASARKAN DATA =====
 
-        #with st.expander("🦖 Aku Bantu Kasih Narasi, MAU? (Klik untuk lihat narasi)"):
-            #topic_desc = st.text_input("Jelaskan topik narasi (misal: ringkasan tren hotel, analisa room night, dsb)", value="ringkasan data")
-            #if st.button("Berikan Narasi"):
-                #with st.spinner("AI Sedang membuat narasi..."):
-                    #narrative = generate_narrative(join_result, topic_desc)
-                    #st.markdown("**Berikut hasilnya:**")
-                    #st.markdown(f"""<div class="narasi-ai">{narrative}</div>""", unsafe_allow_html=True)
-
-        # Inisialisasi klien OpenAI dengan API key dari secrets
-        client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
-
-        # Tampilan UI Streamlit
-        st.set_page_config(page_title="Narasi Logo - Narasight", page_icon="🧠")
-        st.title("🔠 Generator Narasi Logo 'Narasight'")
-
-        # Input prompt dari user
-        prompt = st.text_area("Masukkan permintaan narasi:", "Buatkan narasi branding profesional dan visioner untuk logo 'Narasight'.")
-
-        # Tombol untuk generate narasi
-        if st.button("🚀 Buat Narasi"):
-            with st.spinner("Sedang membuat narasi..."):
-                response = client.chat.completions.create(
-                    model="gpt-4",
-                    messages=[
-                        {"role": "system", "content": "Kamu adalah asisten kreatif yang membantu membuat narasi branding profesional dan tajam."},
-                        {"role": "user", "content": prompt}
-                    ]
-                )
-
-                narasi = response.choices[0].message.content
-                st.success("✅ Narasi berhasil dibuat!")
-                st.markdown("### ✨ Hasil Narasi")
-                st.write(narasi)
+        with st.expander("🦖 Aku Bantu Kasih Narasi, MAU? (Klik untuk lihat narasi)"):
+            topic_desc = st.text_input("Jelaskan topik narasi (misal: ringkasan tren hotel, analisa room night, dsb)", value="ringkasan data")
+            if st.button("Berikan Narasi"):
+                with st.spinner("AI Sedang membuat narasi..."):
+                    narrative = generate_narrative(join_result, topic_desc)
+                    st.markdown("**Berikut hasilnya:**")
+                    st.markdown(f"""<div class="narasi-ai">{narrative}</div>""", unsafe_allow_html=True)
 
         # ===== DOWNLOAD BUTTON =====
         if st.checkbox("✅ Aktifkan Download"):
