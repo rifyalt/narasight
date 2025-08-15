@@ -1,0 +1,1 @@
+streamlitstreamlit-aggridpandasopenpyxlxlsxwriterplotly==5.22.0cmdstan-prophetrapidfuzz>=3.9.0openai==0.28
